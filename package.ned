@@ -1,0 +1,3 @@
+package sketches;
+
+@license(LGPL);

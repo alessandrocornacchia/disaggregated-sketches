@@ -1,0 +1,13 @@
+#
+# Usage:
+#    make -f makemakefiles
+# or, for Microsoft Visual C++:
+#    nmake -f makemakefiles MMOPT=-n
+#
+
+MAKEMAKE=opp_makemake $(MMOPT)
+
+QUEUEINGLIB_PROJ=../queueinglib
+
+all:
+	$(MAKEMAKE) -f --deep -O out -KQUEUEINGLIB_PROJ=../queueinglib -DQUEUEING_IMPORT -I. -I$$\(QUEUEINGLIB_PROJ\) -L$$\(QUEUEINGLIB_PROJ\) -lqueueinglib$$\(D\)
