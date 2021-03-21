@@ -22,10 +22,10 @@ simple Source
         @signal[flowSize](type="long");
         
         @statistic[created](title="the number of flows created";record=last;interpolationmode=none);
-        @statistic[flowSize](title="Flow sizes"; record=vector);@statistic[flowSize](title="Flow sizes"; record=vector);
+        @statistic[flowSize](title="Flow sizes"; record=vector);
         @display("i=block/source");
         
-        int numFlows = default(-1);               // number of flows to be generated (-1 means no limit)
+        int maxFlows = default(-1);               // number of flows to be generated (-1 means no limit)
         volatile double interArrivalTime @unit(s) = default(exponential(1s)); // time between generated flows
         volatile double flowSize = default(exponential(10));	// flow size distribution
         volatile double packetTxTime @unit(s) = default(1s);

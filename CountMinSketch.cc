@@ -11,6 +11,8 @@
    unsigned int estimate(char *item);
 **/
 
+simsignal_t CountMinSketch::pktProcessedSignal = registerSignal("packets");
+
 Define_Module(CountMinSketch);
 
 void CountMinSketch::create_counters() {
@@ -39,7 +41,7 @@ void CountMinSketch::init_hashes() {
 // gamma -> probability for error (the smaller the better) 0 < gamm < 1
 void CountMinSketch::initialize()
 {
-    total = 0;
+    //total = 0;
     d = (int)par("d");
     w = (int)par("w");
 
@@ -99,9 +101,9 @@ void CountMinSketch::finish() {
 
 // CountMinSketch totalcount returns the
 // total count of all items in the sketch
-unsigned int CountMinSketch::totalcount() {
-  return total;
-}
+//unsigned int CountMinSketch::totalcount() {
+//  return total;
+//}
 
 // hashes on row j to get one counter
 unsigned int CountMinSketch::get_bucket_index(unsigned int j, int item) {
@@ -110,8 +112,12 @@ unsigned int CountMinSketch::get_bucket_index(unsigned int j, int item) {
 
 // countMinSketch update item count (int)
 void CountMinSketch::update(int item, int c) {
+
     Enter_Method("update()");
-    total = total + c;
+    //total = total + c;
+
+    emit(CountMinSketch::pktProcessedSignal, 1l);
+
     unsigned int hashval = 0;
     for (unsigned int j = 0; j < d; j++) {
         hashval = get_bucket_index(j,item);

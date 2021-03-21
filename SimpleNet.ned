@@ -34,7 +34,7 @@ network ParkingLot
         }
 
         sink[numHosts]: Sink {
-            @display("p=250,108,r,90");
+            @display("p=950,108,r,-90");
                 //*.eth[*].encapType = "EtherEncapCos";
         }
 
@@ -48,7 +48,7 @@ network ParkingLot
             
             // vertical connections
             source[i+1].out --> switch[i].in++; // source to switch
-            switch[i].out++ --> sink[i].in++;	// switch to sink
+            switch[i].out++ --> sink[numHosts-1-i].in++;	// switch to sink
             
             // horizontal connections 
             switch[i].out++ --> switch[i+1].in++ if i < numSwitches-1;
@@ -56,5 +56,5 @@ network ParkingLot
         }
 
 		// connect last switch to last sink
-        switch[numSwitches-1].out++ --> sink[numHosts-1].in++;
+        switch[numSwitches-1].out++ --> sink[0].in++;
 }

@@ -43,6 +43,8 @@ simple Sink
 		@statistic[flowSize](title="Flow sizes"; record=vector);
 		@statistic[errors](title="Estimation errors"; record=vector);
 		@statistic[pktErrors](title="Estimation errors packet by packet"; record=vector);
+		@statistic[pktsRx](title="Number of received packets"; source=flowSize; record=sum); // number of packets received
+		
 		
     gates:
         input in[];

@@ -26,7 +26,7 @@ void Source::initialize()
 
     startTime = par("startTime");
     stopTime = par("stopTime");
-    numFlows = par("numFlows");
+    maxFlows = par("maxFlows");
     srcName = this->getFullName();
     dstName = par("destination").stdstringValue();
 
@@ -49,11 +49,10 @@ void Source::handleMessage(cMessage *msg)
     ASSERT(msg->isSelfMessage());
 
     if (msg->getKind() == FLOW_ARRIVAL){    // handle flow arrival: create new flow and add to list of active flows
-        if ((numFlows < 0 || numFlows > flowCounter) && (stopTime < 0 || stopTime > simTime())) {
+        if ((maxFlows < 0 || maxFlows > flowCounter) && (stopTime < 0 || stopTime > simTime())) {
 
             Flow f = createFlow();
             flowCounter++;
-            numActiveFlows = activeFlows.size();
 
             // first flow
             if (activeFlows.empty()) {
@@ -63,7 +62,7 @@ void Source::handleMessage(cMessage *msg)
             } else {
                 activeFlows.push_front(f);
             }
-
+            numActiveFlows = activeFlows.size();    // WATCH
             // reschedule the timer for the next flow
             scheduleAt(simTime() + par("interArrivalTime").doubleValue(), flowArrivalMsg);
         }
@@ -97,21 +96,22 @@ void Source::txPacket() {
  *
 */
 void Source::scheduleNextPacket() {
-    if (it->seq == it->size) {
-        it = activeFlows.erase(it); // if flow is ended, delete it
+    if (it->seq == it->size) {  // if flow is ended, delete it
+        it = activeFlows.erase(it);
         numActiveFlows = activeFlows.size();
-        if (it == activeFlows.end()) { // restart pointer if it is at the end
+        // since when removing with erase updates the iterator, it might be that
+        // iterator comes at end(), in this case we just restart from begin()
+        if (it == activeFlows.end()) {
             it = activeFlows.begin();
         }
-    } else { // else increase pointer in circular manner
-        if(activeFlows.empty() || next(it) == activeFlows.end()) {
+    } else { // increase pointer in circular manner
+        if(next(it) == activeFlows.end()) { // XXX removed if(activeFlows.empty() || next(it) == activeFlows.end())
             it = activeFlows.begin();
         } else {
             it++;
         }
     }
-    // schedule new packet
-    // schedule new tx only if not empty (upon new arrival the process will start again)
+    // schedule new packet only if not empty
     if (!activeFlows.empty()) {
         scheduleAt(simTime() + (simtime_t)par("packetTxTime"), txTimeMsg);
     }
@@ -134,11 +134,15 @@ void Source::route(Packet* pkt) {
     }
 }
 
+/*
+ * Chooses a subset of fragments at random among those available
+ * on flow path.
+ */
 void Source::choose_fragments(Flow& f) {
 
     // switches in this configuration are always one less than source vector
     int ns = getVectorSize()-1;
-    f.useSketch.assign(ns,0); // init to all zero
+    f.useSketch.assign(ns, 0); // init to all zero
 
     if (this->getIndex() == 0) {
 
@@ -167,17 +171,23 @@ void Source::choose_fragments(Flow& f) {
 
 Flow Source::createFlow()
 {
-    //long fs = round(par("flowSize").doubleValue());  // add new flow to the list of active flows
+    //long fs = ceil(par("flowSize").doubleValue());  // add new flow to the list of active flows
+
     // inverse-transform method from uniform r.v.
+
+    /* Pareto Type-I */
     double scale = 1.6666666666666667;
     double alpha = 1.2;
 
-    double U = uniform(0,1);
+    double U = uniform(0,1,1);  // use RNG with logical index 1
     double fsd = scale * pow(1.-U, -1./alpha);
-    long fs = round(fsd);
+    long fs = ceil(fsd);
+
+    ASSERT(fs > 0);
 
     //cModule* dstMod = getModuleByPath(dstName);
     //string fid = to_string(dstMod->getId()) + ":" + to_string(this->getId()) + ":" + to_string(flowCounter); // flow identifier
+
     string fid = srcName + ":" + dstName + ":" + to_string(flowCounter); // flow identifier
 
     struct Flow f;

@@ -58,8 +58,8 @@ void Sink::handleMessage(cMessage *msg)
 
     delete msg;
 
-    // end simulation when reached max Flows
-    if (getIndex()==getVectorSize()-1 && numFlows == (int)par("maxFlows")) {
+    // if maxFlows is set (i.e., maxFlows > -1), end simulation when reached
+    if ((int)par("maxFlows")>0 && numFlows == (int)par("maxFlows")) {
         endSimulation();
     }
 }

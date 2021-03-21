@@ -26,7 +26,11 @@ simple CountMinSketch
         int w = default(-1);	// number buckets
         double eps = default(0.01);
         double delta = default(0.01);
-        
+       	
+       	@signal[packets];
+        @statistic[packets](title="number of packets processed";record=count);
+        // other ideas are number of collisions
+         
     //gates:
     //   input in;
     //    output out;

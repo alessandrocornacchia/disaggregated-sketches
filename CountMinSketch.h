@@ -30,6 +30,8 @@ class CountMinSketch : public cSimpleModule {
         virtual void handleMessage(cMessage *msg) override;
         virtual void finish() override;
 
+        static simsignal_t pktProcessedSignal;
+
     private:
         // width, depth
           unsigned int w,d;
@@ -48,7 +50,7 @@ class CountMinSketch : public cSimpleModule {
           unsigned int aj, bj;
 
           // total count so far
-          unsigned int total;
+          //unsigned int total;
 
           // array of arrays of counters
           int **C;
@@ -82,7 +84,7 @@ class CountMinSketch : public cSimpleModule {
       unsigned int estimate(const char *item);
 
       // return total count
-      unsigned int totalcount();
+      //unsigned int totalcount();
 
       // generates a hash value for a string
       // same as djb2 hash function

@@ -32,7 +32,7 @@ class Source : public cSimpleModule
     protected:
 
         int flowCounter;
-        int numFlows;
+        int maxFlows;
         int numActiveFlows;
         string srcName;
         string dstName;
