@@ -17,6 +17,7 @@
 
 #define FLOW_ARRIVAL 0
 #define PACKET_TX 1
+#define min(a,b)  (a < b ? a : b)
 
 typedef std::list<Flow>::iterator RoundRobinPtr;
 
@@ -31,6 +32,8 @@ class Source : public cSimpleModule
 
     protected:
 
+        enum SketchLoadBalance {RANDOM, DETERMINISTIC, SUICIDE};
+
         int flowCounter;
         int maxFlows;
         int numActiveFlows;
@@ -38,6 +41,9 @@ class Source : public cSimpleModule
         string dstName;
         list<Flow> activeFlows;
         RoundRobinPtr it;
+        SketchLoadBalance lb;
+        vector<int> used_fragments; // used if load balance policy is suicide
+        int deterministic_load_balance_ptr = 0;
 
         /* two events can happen in the simulator */
         cMessage* flowArrivalMsg;
@@ -60,6 +66,7 @@ class Source : public cSimpleModule
         void route(Packet* pkt);
 
         void choose_fragments(Flow& f);
+        vector<int> choose_K_at_random_without_repetition(int k);
 
     public:
         ~Source();

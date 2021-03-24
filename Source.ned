@@ -28,12 +28,13 @@ simple Source
         int maxFlows = default(-1);               // number of flows to be generated (-1 means no limit)
         volatile double interArrivalTime @unit(s) = default(exponential(1s)); // time between generated flows
         volatile double flowSize = default(exponential(10));	// flow size distribution
+        int maxFlowSize = default(10000);	// truncate flow size after this value 
         volatile double packetTxTime @unit(s) = default(1s);
         volatile string destination = "sink[0]";	// TODO not used now
         
         //volatile int jobType = default(0);       // the type attribute of the created job (used by classifers and other modules)
         //volatile int jobPriority = default(0);   // priority of the job
-        double startTime @unit(s) = default(interArrivalTime); // when the module sends out the first job
+        double startTime @unit(s) = default(interArrivalTime); // when the module sends out the first job. -1 means deactivated
         double stopTime @unit(s) = default(-1s); // when the module stops the job generation (-1 means no limit)
     gates:
         output out;

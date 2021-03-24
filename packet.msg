@@ -22,7 +22,18 @@ cplusplus {{
 	typedef std::vector<int> vec;
 }}
 
+// if want to use this starting from omnet6.0, you should include a makefrag with
+// folloowing lines:
+// 
+// MSGC:=$(MSGC) --msg4
+//   
 class noncobject vec;
+
+// otherwise use the latest notation:
+
+//class vec {
+//	@existingClass;
+//}
 
 struct Flow {
 	

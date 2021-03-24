@@ -30,6 +30,18 @@ void Source::initialize()
     srcName = this->getFullName();
     dstName = par("destination").stdstringValue();
 
+    string lbpar = getAncestorPar("load_balacing").stdstringValue();
+    transform(lbpar.begin(), lbpar.end(), lbpar.begin(), ::toupper);
+
+    if (lbpar == "RANDOM") {
+        lb = SketchLoadBalance::RANDOM;
+    } else if (lbpar == "DETERMINISTIC") {
+        lb = SketchLoadBalance::DETERMINISTIC;
+    } else if (lbpar == "SUICIDE") {
+        lb = SketchLoadBalance::SUICIDE;
+        used_fragments = choose_K_at_random_without_repetition((int)getAncestorPar("K"));
+    }
+
     flowArrivalMsg = new cMessage("flow arrival", FLOW_ARRIVAL);
     txTimeMsg = new cMessage("tx ended", PACKET_TX);
 
@@ -140,48 +152,85 @@ void Source::route(Packet* pkt) {
  */
 void Source::choose_fragments(Flow& f) {
 
-    // switches in this configuration are always one less than source vector
-    int ns = getVectorSize()-1;
-    f.useSketch.assign(ns, 0); // init to all zero
+    int ns = getVectorSize() - 1;
 
-    if (this->getIndex() == 0) {
+    //f.useSketch.assign(ns, 0); // init to all zero
 
-        if ((int)getAncestorPar("K")==-1) { // DISCO
+    if (this->getIndex() == 0) {    // horizontal flows
+        int k = (int)getAncestorPar("K");
 
-            f.useSketch.assign(ns,1); // use all
+        if (k == ns) {  // DISCO
+            f.useSketch.assign(ns, 1);
+        } else {    // need of load balancing
 
-        } else {    // use K at random
+            switch (lb) {   // depending on lb policy
 
-            int k = (int)getAncestorPar("K");
-            vector<int> fragments(ns); // init to range starting from zero
-            std::iota(fragments.begin(), fragments.end(), 0);
-            int idx;
+                case RANDOM:
+                    // use K at random
+                    f.useSketch = choose_K_at_random_without_repetition(k);
+                    break;
 
-            for (unsigned i=0; i<k; i++){
-                idx = intuniform(0, fragments.size()-1);
-                f.useSketch[fragments[idx]] = 1;
-                fragments.erase(fragments.begin()+idx);
+                case DETERMINISTIC: { // deterministic load balancing
+                    int from = deterministic_load_balance_ptr;
+                    int to = (deterministic_load_balance_ptr + k) % ns;
+                    EV_INFO << "Using fragments from " << from << " to " << to << endl;
+                    f.useSketch.assign(ns, 0); // init to all zero
+
+                    for (unsigned i=from; i != to; i=(i+1) % ns) {  // use fragments in range from-to with circular iteration
+                        f.useSketch[i] = 1;
+                    }
+
+                    deterministic_load_balance_ptr = (deterministic_load_balance_ptr + k) % ns;
+                    break;
+                }
+
+                case SUICIDE:   // use always the same
+                    f.useSketch = used_fragments;
+                    break;
+
+                default:
+                    break;
             }
         }
 
-    } else {    // set one in correspondence of the switch traversed
-        f.useSketch[getIndex()-1] = 1;
+    } else {    // vertical flows
+        f.useSketch.assign(ns, 0); // init to all zero
+        f.useSketch[getIndex()-1] = 1; // set one in correspondence of the switch traversed
     }
+}
+
+vector<int> Source::choose_K_at_random_without_repetition(int k) {
+
+    // switches in this configuration are always one less than source vector
+    int ns = getVectorSize() - 1;
+
+    vector<int> fragments(ns); // init to range starting from zero
+    std::iota(fragments.begin(), fragments.end(), 0);
+    vector<int> choice(ns, 0);
+
+    int idx;
+
+    for (unsigned i=0; i<k; i++){
+        idx = intuniform(0, fragments.size()-1);
+        choice[fragments[idx]] = 1;
+        fragments.erase(fragments.begin()+idx);
+    }
+    return choice;
 }
 
 Flow Source::createFlow()
 {
-    //long fs = ceil(par("flowSize").doubleValue());  // add new flow to the list of active flows
+    long fs = min((long)par("maxFlowSize"), ceil(par("flowSize").doubleValue()));  // add new flow to the list of active flows
 
     // inverse-transform method from uniform r.v.
 
-    /* Pareto Type-I */
+    /* Pareto Type-I
     double scale = 1.6666666666666667;
     double alpha = 1.2;
 
     double U = uniform(0,1,1);  // use RNG with logical index 1
     double fsd = scale * pow(1.-U, -1./alpha);
-    long fs = ceil(fsd);
+    long fs = ceil(fsd); */
 
     ASSERT(fs > 0);
 

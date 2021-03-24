@@ -22,6 +22,7 @@ network ParkingLot
         int numHosts = default(10);
         int numSwitches = default(8);
         int K = default(numSwitches);
+        string load_balacing = default("random");
        
     submodules:
 
