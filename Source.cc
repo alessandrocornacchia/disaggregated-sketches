@@ -10,6 +10,7 @@
 #include "Source.h"
 #include <sstream>
 #include <numeric>
+#include <algorithm>
 
 simsignal_t Source::flowSizeSignal = registerSignal("flowSize");
 
@@ -31,7 +32,7 @@ void Source::initialize()
     dstName = par("destination").stdstringValue();
 
     string lbpar = getAncestorPar("load_balacing").stdstringValue();
-    transform(lbpar.begin(), lbpar.end(), lbpar.begin(), ::toupper);
+    std::transform(lbpar.begin(), lbpar.end(), lbpar.begin(), ::toupper);
 
     if (lbpar == "RANDOM") {
         lb = SketchLoadBalance::RANDOM;
@@ -220,7 +221,7 @@ vector<int> Source::choose_K_at_random_without_repetition(int k) {
 
 Flow Source::createFlow()
 {
-    long fs = min((long)par("maxFlowSize"), ceil(par("flowSize").doubleValue()));  // add new flow to the list of active flows
+    long fs = MIN((long)par("maxFlowSize"), ceil(par("flowSize").doubleValue()));  // add new flow to the list of active flows
 
     // inverse-transform method from uniform r.v.
 

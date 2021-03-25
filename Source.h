@@ -17,7 +17,7 @@
 
 #define FLOW_ARRIVAL 0
 #define PACKET_TX 1
-#define min(a,b)  (a < b ? a : b)
+#define MIN(a,b)  (a < b ? a : b)
 
 typedef std::list<Flow>::iterator RoundRobinPtr;
 
