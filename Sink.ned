@@ -19,6 +19,7 @@ simple Sink
         @display("i=block/sink");
         
         int maxFlows = default(-1);
+        double epochDuration @unit(s) = default(0s);	// set to an interval if needed
         
 //        @signal[lifeTime](type="simtime_t");
 //        @signal[totalQueueingTime](type="simtime_t");
@@ -38,10 +39,14 @@ simple Sink
 		
 		@signal[flowSize](type=long);
 		@signal[errors](type=long);
+		@signal[endFlowSize](type=long);
+		@signal[endErrors](type=long);
 		@signal[pktErrors](type=long);
 		
 		@statistic[flowSize](title="Flow sizes"; record=vector);
 		@statistic[errors](title="Estimation errors"; record=vector);
+		@statistic[endFlowSize](title="Flow sizes at end of measurement epoch"; record=vector);
+		@statistic[endErrors](title="Estimation errors at end of measurement epoch"; record=vector);
 		@statistic[pktErrors](title="Estimation errors packet by packet"; record=vector);
 		@statistic[pktsRx](title="Number of received packets"; source=flowSize; record=sum); // number of packets received
 		

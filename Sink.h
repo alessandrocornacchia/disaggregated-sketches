@@ -11,8 +11,10 @@
 #define __SKETCHES_SINK_H
 
 #include "omnetpp.h"
+#include "packet_m.h"
 
 using namespace omnetpp;
+using namespace std;
 
 /**
  * Consumes jobs; see NED file for more info.
@@ -26,10 +28,17 @@ class Sink : public cSimpleModule
 
         static simsignal_t flowSizeSignal;
         static simsignal_t errorSignal;
+        static simsignal_t endFlowSizeSignal;
+        static simsignal_t endErrorSignal;
         static simsignal_t pktErrorSignal;
+
+    public:
+        void query_sketches();
 
     protected:
         int numFlows;
+        list<Flow> rxFlows;
+        cMessage* endEpoch = nullptr; // end measurement epoch
 };
 
 #endif

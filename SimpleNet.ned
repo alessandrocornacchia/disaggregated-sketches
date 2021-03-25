@@ -23,7 +23,7 @@ network ParkingLot
         int numSwitches = default(8);
         int K = default(numSwitches);
         string load_balacing = default("random");
-       
+
     submodules:
 
         switch[numSwitches]: Switch {
@@ -46,14 +46,13 @@ network ParkingLot
 
         // connect all switches in the middle
         for i=0..numSwitches-1 {
-            
             // vertical connections
             source[i+1].out --> switch[i].in++; // source to switch
             switch[i].out++ --> sink[numHosts-1-i].in++;	// switch to sink
-            
+
             // horizontal connections 
             switch[i].out++ --> switch[i+1].in++ if i < numSwitches-1;
-            
+
         }
 
 		// connect last switch to last sink
