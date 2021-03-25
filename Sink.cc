@@ -87,8 +87,7 @@ void Sink::query_sketches() {
                 string pathName = string("^.switch[") + to_string(i) + string("].sketch");
                 cModule* mod = getModuleByPath(pathName.c_str());
                 CountMinSketch* cms = check_and_cast<CountMinSketch*>(mod);
-                const char* item = f.id.c_str();
-                unsigned local_est = cms->estimate(item);
+                unsigned local_est = cms->estimate(f.id.c_str());
                 if (local_est < est) {
                     est = local_est;
                 }
@@ -96,7 +95,7 @@ void Sink::query_sketches() {
         }
 
         emit(Sink::endFlowSizeSignal, f.size);
-        emit(Sink::endErrorSignal, abs(est - f.size));
+        emit(Sink::endErrorSignal, est - f.size);
 
     }
 }
