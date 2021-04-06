@@ -10,6 +10,7 @@
 #include "Source.h"
 #include <sstream>
 #include <numeric>
+#include <algorithm>
 
 simsignal_t Source::flowSizeSignal = registerSignal("flowSize");
 
@@ -220,7 +221,7 @@ vector<int> Source::choose_K_at_random_without_repetition(int k) {
 
 Flow Source::createFlow()
 {
-    long fs = min((long)par("maxFlowSize"), ceil(par("flowSize").doubleValue()));  // add new flow to the list of active flows
+    long fs = MIN((long)par("maxFlowSize"), ceil(par("flowSize").doubleValue()));  // add new flow to the list of active flows
 
     // inverse-transform method from uniform r.v.
 
