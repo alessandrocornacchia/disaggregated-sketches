@@ -106,12 +106,12 @@ void CountMinSketch::finish() {
 //}
 
 // hashes on row j to get one counter
-unsigned int CountMinSketch::get_bucket_index(unsigned int j, int item) {
-    return (unsigned int)(((long)hashes[j][0]*item+hashes[j][1]) % LONG_PRIME) % w;
+unsigned int CountMinSketch::get_bucket_index(unsigned int j, int item, int M) {
+    return (unsigned int)(((long)hashes[j][0]*item+hashes[j][1]) % LONG_PRIME) % M;
 }
 
 // countMinSketch update item count (int)
-void CountMinSketch::update(int item, int c) {
+void CountMinSketch::update(int item, int c, int k) {
 
     Enter_Method("update()");
     //total = total + c;
@@ -119,34 +119,71 @@ void CountMinSketch::update(int item, int c) {
     emit(CountMinSketch::pktProcessedSignal, 1l);
 
     unsigned int hashval = 0;
-    for (unsigned int j = 0; j < d; j++) {
-        hashval = get_bucket_index(j,item);
-        C[j][hashval] = C[j][hashval] + c;
+
+    if(k == -1) { // use in the standard mode
+        for (unsigned int j = 0; j < d; j++) {
+            hashval = get_bucket_index(j,item, w);
+            C[j][hashval] = C[j][hashval] + c;
+        }
+    } else if (k > 0 && k <= d) { // use a subset with offset
+        int row = 0, col = 0;
+        int M = d * w / k; // memory available for the each hash function when we use k of them
+        for (unsigned int j = 0; j < k; j++) {
+            hashval = get_bucket_index(j, item, M);
+            reindex(hashval, j*M, &row, &col);
+            C[row][col] = C[row][col] + c;
+        }
+    } else {
+        throw cRuntimeError("Requested number of hash exceeds available");
     }
 }
 
+/*
+ * given a "virtual" row index, i.e., bucket chosen by an hash function,
+ * reindex maps the very same index onto the actual sketch organization
+ */
+void CountMinSketch::reindex(int vrow, int offset, int* row, int* col) {
+    *row = floor(double(vrow + offset) / w);
+    // column index
+    *col = (vrow + offset) % w;
+}
+
 // countMinSketch update item count (string)
-void CountMinSketch::update(const char *str, int c) {
+void CountMinSketch::update(const char *str, int c, int k) {
     int hashval = hashstr(str);
-    update(hashval, c);
+    update(hashval, c, k);
 }
 
 // CountMinSketch estimate item count (int)
-unsigned int CountMinSketch::estimate(int item) {
+unsigned int CountMinSketch::estimate(int item, int k) {
     Enter_Method("estimate()");
     int minval = numeric_limits<int>::max();
     unsigned int hashval = 0;
-    for (unsigned int j = 0; j < d; j++) {
-        hashval = get_bucket_index(j,item);
-        minval = MIN(minval, C[j][hashval]);
+
+    if(k == -1) { // use in the standard mode
+        for (unsigned int j = 0; j < d; j++) {
+            hashval = get_bucket_index(j,item, w);
+            minval = MIN(minval, C[j][hashval]);
+        }
+    }
+    else if (k > 0 && k <= d) {
+        int row = 0, col = 0;
+        int M = d * w / k; // memory available for the each hash function when we use k of them
+        for (unsigned int j = 0; j < k; j++) {
+            hashval = get_bucket_index(j, item, M);
+            reindex(hashval, j*M, &row, &col);
+            minval = MIN(minval, C[row][col]);
+        }
+    } else {
+        throw cRuntimeError("Requested number of hash exceeds available");
     }
     return minval;
 }
 
 // CountMinSketch estimate item count (string)
-unsigned int CountMinSketch::estimate(const char *str) {
+unsigned int CountMinSketch::estimate(const char *str, int k) {
     int hashval = hashstr(str);
-    return estimate(hashval);
+    return estimate(hashval, k);
 }
 
 // generates aj,bj from field Z_p for use in hashing

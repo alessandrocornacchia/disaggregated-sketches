@@ -62,8 +62,10 @@ class CountMinSketch : public cSimpleModule {
           // generate "new" aj,bj
           void genajbj(int **hashes, int i);
 
+          void reindex(int vrow, int offset, int* row, int* col);
+
           // get bucket index on row j
-          unsigned int get_bucket_index(unsigned int j, int item);
+          unsigned int get_bucket_index(unsigned int j, int item, int M);
 
     public:
       // constructor
@@ -75,13 +77,13 @@ class CountMinSketch : public cSimpleModule {
       //CountMinSketch(int d, int m);
 
       // update item (int) by count c
-      void update(int item, int c=1);
+      void update(int item, int c=1, int k=-1);
       // update item (string) by count c
-      void update(const char *item, int c=1);
+      void update(const char *item, int c=1, int k=-1);
 
       // estimate count of item i and return count
-      unsigned int estimate(int item);
-      unsigned int estimate(const char *item);
+      unsigned int estimate(int item, int k=-1);
+      unsigned int estimate(const char *item, int k=-1);
 
       // return total count
       //unsigned int totalcount();

@@ -196,7 +196,7 @@ void Source::choose_fragments(Flow& f) {
 
     } else {    // vertical flows
         f.useSketch.assign(ns, 0); // init to all zero
-        f.useSketch[getIndex()-1] = 1; // set one in correspondence of the switch traversed
+        f.useSketch[getIndex()-1] = (int)par("numSketchFragments"); // set one in correspondence of the switch traversed
     }
 }
 
@@ -213,7 +213,7 @@ vector<int> Source::choose_K_at_random_without_repetition(int k) {
 
     for (unsigned i=0; i<k; i++){
         idx = intuniform(0, fragments.size()-1);
-        choice[fragments[idx]] = 1;
+        choice[fragments[idx]] = (int)par("numSketchFragments");
         fragments.erase(fragments.begin()+idx);
     }
     return choice;
