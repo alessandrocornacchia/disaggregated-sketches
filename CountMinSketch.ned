@@ -28,7 +28,9 @@ simple CountMinSketch
         double delta = default(0.01);
        	
        	@signal[packets];
-        @statistic[packets](title="number of packets processed";record=count);
+       	@signal[counterLoad];
+        @statistic[packets](title="number of packets processed"; record=count);
+        @statistic[counterLoad](title="Average value on counter"; record=last);
         // other ideas are number of collisions
          
     //gates:

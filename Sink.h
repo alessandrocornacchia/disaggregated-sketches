@@ -31,6 +31,11 @@ class Sink : public cSimpleModule
         static simsignal_t endFlowSizeSignal;
         static simsignal_t endErrorSignal;
         static simsignal_t pktErrorSignal;
+        static simsignal_t usedSketchSignal;
+
+    private:
+        string sketch_vec_to_str(vector<int> v);
+        long sketch_vec_to_long(vector<int> v);
 
     public:
         void query_sketches();

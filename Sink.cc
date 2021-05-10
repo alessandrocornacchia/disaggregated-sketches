@@ -11,6 +11,7 @@
 #include "packet_m.h"
 #include "CountMinSketch.h"
 
+simsignal_t Sink::usedSketchSignal = registerSignal("usedSketches");
 simsignal_t Sink::flowSizeSignal = registerSignal("flowSize");
 simsignal_t Sink::errorSignal = registerSignal("errors");
 simsignal_t Sink::endFlowSizeSignal = registerSignal("endFlowSize");
@@ -73,6 +74,32 @@ void Sink::handleMessage(cMessage *msg)
     }
 }
 
+/*
+ * represents vector as a tokenized string
+ */
+string Sink::sketch_vec_to_str(vector<int> v) {
+    string s;
+    for (auto x : v)
+        s += (s.empty() ? "" : ".") + to_string(x);
+    return s;
+}
+
+/*
+ * convert binary sketch vector to long in order to be recorded
+ * as standard statistic
+ */
+long Sink::sketch_vec_to_long(vector<int> v) {
+    long res = 0;
+    for (int i=0; i < v.size(); i++) {
+        if (v[i] > 1 || v[i] < 0) {
+            throw cRuntimeError("Conversion supported only for binary vectors");
+        }
+        res += v[i] * pow(2, v.size()-1-i);
+    }
+    EV_DEBUG << sketch_vec_to_str(v) << " -> " << res << endl;
+    return res;
+}
+
 // perform queries on sketches on the path for all rx flows
 void Sink::query_sketches() {
 
@@ -97,6 +124,7 @@ void Sink::query_sketches() {
 
         emit(Sink::endFlowSizeSignal, f.size);
         emit(Sink::endErrorSignal, est - f.size);
+        emit(Sink::usedSketchSignal, sketch_vec_to_long(f.useSketch));
 
     }
 }

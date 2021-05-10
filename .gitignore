@@ -52,6 +52,7 @@ netanim-trace.txt
 *.FAILED
 *.ERROR
 *.bak
+*.orig
 backups
 *~
 /tmp/

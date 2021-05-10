@@ -12,6 +12,7 @@
 **/
 
 simsignal_t CountMinSketch::pktProcessedSignal = registerSignal("packets");
+simsignal_t CountMinSketch::counterLoadSignal = registerSignal("counterLoad");
 
 Define_Module(CountMinSketch);
 
@@ -44,6 +45,7 @@ void CountMinSketch::initialize()
     //total = 0;
     d = (int)par("d");
     w = (int)par("w");
+    total = 0;
 
     if (d == -1 && w == -1) {
         eps = par("eps").doubleValue();
@@ -69,6 +71,9 @@ void CountMinSketch::handleMessage(cMessage *msg)
 }
 
 void CountMinSketch::finish() {
+
+    emit(CountMinSketch::counterLoadSignal, double(total)/(d*w));
+
     // free array of counters, C
       unsigned int i;
       for (i = 0; i < d; i++) {
@@ -101,9 +106,9 @@ void CountMinSketch::finish() {
 
 // CountMinSketch totalcount returns the
 // total count of all items in the sketch
-//unsigned int CountMinSketch::totalcount() {
-//  return total;
-//}
+unsigned int CountMinSketch::totalcount() {
+  return total;
+}
 
 // hashes on row j to get one counter
 unsigned int CountMinSketch::get_bucket_index(unsigned int j, int item, int M) {
@@ -114,7 +119,7 @@ unsigned int CountMinSketch::get_bucket_index(unsigned int j, int item, int M) {
 void CountMinSketch::update(int item, int c, int k) {
 
     Enter_Method("update()");
-    //total = total + c;
+    total = total + c;
 
     emit(CountMinSketch::pktProcessedSignal, 1l);
 
