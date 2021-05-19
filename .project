@@ -3,6 +3,7 @@
 	<name>sketches</name>
 	<comment></comment>
 	<projects>
+		<project>inet4</project>
 		<project>queueinglib</project>
 	</projects>
 	<buildSpec>

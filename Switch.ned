@@ -18,7 +18,8 @@ package sketches;
 module Switch
 {
     @display("bgb=523,203");
-
+	@switch;
+	
     gates:
         input in[];
         output out[];

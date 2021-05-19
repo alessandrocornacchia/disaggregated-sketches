@@ -15,7 +15,6 @@
 
 package sketches;
 
-// TODO correct positioning 
 network ParkingLot
 {
     parameters:
@@ -57,4 +56,47 @@ network ParkingLot
 
 		// connect last switch to last sink
         switch[numSwitches-1].out++ --> sink[0].in++;
+}
+
+
+network Ring
+{
+    parameters:
+        int numHosts = default(10);
+        int numSwitches = default(8);
+        int K = default(numSwitches);
+        string load_balacing = default("random");
+
+    submodules:
+
+        switch[numSwitches]: Switch {
+            @display("p=232,208,ri,100,100;i=block/routing");
+        }
+        source[numHosts]: Source {
+            @display("p=50,40,ri,230,230;i=block/source_s");
+                //*.eth[*].encapType = "EtherEncapCos";
+        }
+
+        sink[numHosts]: Sink {
+            @display("p=80,60,ri,250,250;i=block/sink_s");
+                //*.eth[*].encapType = "EtherEncapCos";
+        }
+
+    connections:
+
+        // connect first source to first switch
+        //source[0].out --> switch[0].in++;
+
+        for i=0..numSwitches-1 {
+            // vertical connections
+            source[i].out --> switch[i].in++; // source to switch
+            switch[i].out++ --> sink[i].in++;	// switch to sink
+
+            // horizontal connections 
+            switch[i].out++ --> switch[(i+1) % numSwitches].in++; // switch i to i+1
+			//switch[(i+1) % numSwitches].out++ --> switch[i].in++; // switch i+1 to i
+        }
+
+		// connect last switch to last sink
+        //switch[numSwitches-1].out++ --> sink[0].in++;
 }

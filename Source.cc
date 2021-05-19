@@ -8,11 +8,13 @@
 //
 
 #include "Source.h"
+#include "inet/common/Topology.h"
 #include <sstream>
 #include <numeric>
 #include <algorithm>
 
 simsignal_t Source::flowSizeSignal = registerSignal("flowSize");
+simsignal_t Source::createdSignal = registerSignal("created");
 
 Define_Module(Source);
 
@@ -21,15 +23,19 @@ Define_Module(Source);
  */
 void Source::initialize()
 {
-    createdSignal = registerSignal("created");
+
     flowCounter = 0;
     numActiveFlows = 0;
+    cModule* switchVec = getModuleByPath("^.switch[0]");
+
+    if (switchVec) {
+        numSwitches = switchVec->getVectorSize();
+    }
 
     startTime = par("startTime");
     stopTime = par("stopTime");
     maxFlows = par("maxFlows");
     srcName = this->getFullName();
-    dstName = par("destination").stdstringValue();
 
     string lbpar = getAncestorPar("load_balacing").stdstringValue();
     std::transform(lbpar.begin(), lbpar.end(), lbpar.begin(), ::toupper);
@@ -40,8 +46,10 @@ void Source::initialize()
         lb = SketchLoadBalance::DETERMINISTIC;
     } else if (lbpar == "SUICIDE") {
         lb = SketchLoadBalance::SUICIDE;
-        used_fragments = choose_K_at_random_without_repetition((int)getAncestorPar("K"));
     }
+
+    EV_INFO << "Compute routing" << endl;
+    populateRoutingTable();
 
     flowArrivalMsg = new cMessage("flow arrival", FLOW_ARRIVAL);
     txTimeMsg = new cMessage("tx ended", PACKET_TX);
@@ -55,6 +63,56 @@ void Source::initialize()
     WATCH(numActiveFlows);
     //WATCH_LIST(activeFlows);
 
+}
+
+/* get shortest path routes toward all other hosts in the network */
+void Source::populateRoutingTable() {
+
+        cTopology *topo = new cTopology("topo");
+
+        // include in topology all sources, sinks and switches (would be better to use @properties)
+        //topo->extractByProperty("switch");
+        topo->extractByModulePath(cStringTokenizer("**.source* **.sink* **.switch*").asVector());
+        EV << "cTopology found " << topo->getNumNodes() << " nodes\n";
+
+        cTopology::Node *thisNode = topo->getNodeFor(this);
+
+        // find and store routes to all other hosts
+        for (int i = 0; i < topo->getNumNodes(); i++) {
+
+            string nodeName = string(topo->getNode(i)->getModule()->getName());
+            if (nodeName.find("sink") == string::npos) {
+                continue;  // compute routes toward sink nodes only
+            }
+            topo->calculateUnweightedSingleShortestPathsTo(topo->getNode(i));
+
+            if (thisNode->getNumPaths() == 0) {
+                continue;  // not connected
+            }
+
+            // source routing start computing routes from first hop in the network
+            // i.e., source host output interface is not included
+            cTopology::Node *currentNode = thisNode->getPath(0)->getRemoteNode();
+            std::vector<int> routeToTarget;
+            // walk through topology towards target node and collect list of forwarding interface indexes
+            while (currentNode != topo->getTargetNode()) {
+
+                cGate *outGate = currentNode->getPath(0)->getLocalGate();
+                int gateIndex = outGate->getIndex();
+                routeToTarget.push_back(gateIndex);
+                currentNode = currentNode->getPath(0)->getRemoteNode();
+            }
+
+            int address = topo->getTargetNode()->getModule()->getId();
+            rtable[address] = routeToTarget;
+            EV << "Route towards " << topo->getTargetNode()->getModule()->getFullName() << " with address " << address << " gateIndex is {";
+            for (int i=0; i < routeToTarget.size()-1; i++) {
+              EV << routeToTarget[i] << '-';
+            }
+            EV << routeToTarget.back() << "}" << endl;
+
+        }
+        delete topo;
 }
 
 void Source::handleMessage(cMessage *msg)
@@ -130,88 +188,86 @@ void Source::scheduleNextPacket() {
     }
 }
 
+/* reads routing table */
+vector<int> Source::getRouteTo(int dst) {
+    RoutingTable::iterator it = rtable.find(dst);
+    if (it == rtable.end()) {
+        string msg = string("Destination ") + to_string(dst) + string(" not found");
+        throw cRuntimeError(msg.c_str());
+    }
+    return (*it).second;
+}
+
+/* route packet of given flow */
 void Source::route(Packet* pkt) {
-    // compute routing
-    if (!this->isVector()) {
-        throw cRuntimeError("Not supported");
+
+    vector<int> outGates = getRouteTo(pkt->getFlow().dst);
+    pkt->setRouteArraySize(outGates.size());
+
+    // add forwarding interfaces (setRoute requires reverse order because
+    // we will trim size with setArraySize at relay units, cutting out last elements)
+    for(int i=0; i < outGates.size(); i++){
+        pkt->setRoute(outGates.size()-1-i, outGates[i]);
     }
 
-    if (this->getIndex() == 0) {    // if source zero go horizontal
-        pkt->setRouteArraySize(getVectorSize()-1);
-        for(int i=0; i<getVectorSize()-1; i++){
-            pkt->setRoute(i, 1);    // always use interface 1
-        }
-    } else { // go vertical
-        pkt->setRouteArraySize(getVectorSize()-1);
-        pkt->setRoute(0, 0);
-    }
 }
 
 /*
  * Chooses a subset of fragments at random among those available
  * on flow path.
  */
-void Source::choose_fragments(Flow& f) {
+void Source::chooseFragments(Flow& f) {
 
-    int ns = getVectorSize() - 1;
+    int numHop = getRouteTo(f.dst).size();
+    int k = MIN((int)getAncestorPar("K"), numHop);
 
-    //f.useSketch.assign(ns, 0); // init to all zero
+    // switches along the path will fill this
+    f.useSketch.assign(numSwitches, 0);
 
-    if (this->getIndex() == 0) {    // horizontal flows
-        int k = (int)getAncestorPar("K");
+    switch (lb) {   // depending on lb policy
 
-        if (k == ns) {  // DISCO
-            f.useSketch.assign(ns, 1);
-        } else {    // need of load balancing
+        case RANDOM:
+            // use K at random
+            f.FWI = randomSubset(k, numHop);
+            break;
 
-            switch (lb) {   // depending on lb policy
+        case DETERMINISTIC: { // deterministic load balancing
+            int from = deterministic_load_balance_ptr;
+            int to = (deterministic_load_balance_ptr + k) % numHop;
+            EV_INFO << "Using fragments from " << from << " to " << to << endl;
+            f.FWI.assign(numHop, 0); // init to all zero
 
-                case RANDOM:
-                    // use K at random
-                    f.useSketch = choose_K_at_random_without_repetition(k);
-                    break;
-
-                case DETERMINISTIC: { // deterministic load balancing
-                    int from = deterministic_load_balance_ptr;
-                    int to = (deterministic_load_balance_ptr + k) % ns;
-                    EV_INFO << "Using fragments from " << from << " to " << to << endl;
-                    f.useSketch.assign(ns, 0); // init to all zero
-
-                    for (unsigned i=from; i != to; i=(i+1) % ns) {  // use fragments in range from-to with circular iteration
-                        f.useSketch[i] = 1;
-                    }
-
-                    deterministic_load_balance_ptr = (deterministic_load_balance_ptr + k) % ns;
-                    break;
-                }
-
-                case SUICIDE:   // use always the same
-                    f.useSketch = used_fragments;
-                    break;
-
-                default:
-                    break;
+            for (unsigned i=from; i != to; i=(i+1) % numHop) {  // use fragments in range from-to with circular iteration
+                f.FWI[i] = 1;
             }
+
+            deterministic_load_balance_ptr = (deterministic_load_balance_ptr + k) % numHop;
+            break;
         }
 
-    } else {    // vertical flows
-        f.useSketch.assign(ns, 0); // init to all zero
-        f.useSketch[getIndex()-1] = (int)par("numSketchFragments"); // set one in correspondence of the switch traversed
+        case SUICIDE:
+            // use always first k
+            f.FWI.assign(numHop, 0);
+            for (int i=0; i < k; i++) {
+                f.FWI[i] = 1;
+            }
+            break;
+
+        default:
+            break;
     }
 }
 
-vector<int> Source::choose_K_at_random_without_repetition(int k) {
+/* extract k elements without repetition out of n */
+deque<int> Source::randomSubset(int k, int n) {
 
-    // switches in this configuration are always one less than source vector
-    int ns = getVectorSize() - 1;
-
-    vector<int> fragments(ns); // init to range starting from zero
+    vector<int> fragments(n); // init to range starting from zero
     std::iota(fragments.begin(), fragments.end(), 0);
-    vector<int> choice(ns, 0);
+    deque<int> choice(n, 0);
 
     int idx;
 
-    for (unsigned i=0; i<k; i++){
+    for (unsigned i=0; i < k; i++){
         idx = intuniform(0, fragments.size()-1);
         choice[fragments[idx]] = (int)par("numSketchFragments");
         fragments.erase(fragments.begin()+idx);
@@ -222,31 +278,19 @@ vector<int> Source::choose_K_at_random_without_repetition(int k) {
 Flow Source::createFlow()
 {
     long fs = MIN((long)par("maxFlowSize"), ceil(par("flowSize").doubleValue()));  // add new flow to the list of active flows
-
-    // inverse-transform method from uniform r.v.
-
-    /* Pareto Type-I
-    double scale = 1.6666666666666667;
-    double alpha = 1.2;
-
-    double U = uniform(0,1,1);  // use RNG with logical index 1
-    double fsd = scale * pow(1.-U, -1./alpha);
-    long fs = ceil(fsd); */
-
     ASSERT(fs > 0);
 
-    //cModule* dstMod = getModuleByPath(dstName);
-    //string fid = to_string(dstMod->getId()) + ":" + to_string(this->getId()) + ":" + to_string(flowCounter); // flow identifier
-
+    // extract random uniform destination
+    string dstName = par("dstHost").stdstringValue();
     string fid = srcName + ":" + dstName + ":" + to_string(flowCounter); // flow identifier
 
     struct Flow f;
     f.size = fs;
     f.id = fid;
-    f.src = srcName;
-    f.dst = dstName;
+    f.src = getId();
+    f.dst = getModuleByPath(dstName.c_str())->getId();
 
-    choose_fragments(f);
+    chooseFragments(f);
 
     EV_INFO << "Generated new flow <" << f.id << "> of size " << f.size << endl;
     emit(Source::flowSizeSignal, f.size);

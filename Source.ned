@@ -30,7 +30,7 @@ simple Source
         volatile double flowSize = default(exponential(10));	// flow size distribution
         int maxFlowSize = default(10000);	// truncate flow size after this value 
         volatile double packetTxTime @unit(s) = default(1s);
-        volatile string destination = "sink[0]";	// TODO not used now
+        volatile string dstHost = default("sink[0]");	// TODO not used now
         int numSketchFragments = default(1);
         
         //volatile int jobType = default(0);       // the type attribute of the created job (used by classifers and other modules)

@@ -7,7 +7,8 @@
 
 MAKEMAKE=opp_makemake $(MMOPT)
 
+INET4_PROJ=../inet4
 QUEUEINGLIB_PROJ=../queueinglib
 
 all:
-	$(MAKEMAKE) -f --deep -O out -KQUEUEINGLIB_PROJ=../queueinglib -DQUEUEING_IMPORT -I. -I$$\(QUEUEINGLIB_PROJ\) -L$$\(QUEUEINGLIB_PROJ\) -lqueueinglib$$\(D\)
+	$(MAKEMAKE) -f --deep -O out -KINET4_PROJ=../inet4 -KQUEUEINGLIB_PROJ=../queueinglib -DINET_IMPORT -DQUEUEING_IMPORT -I. -I$$\(INET4_PROJ\)/src -I$$\(QUEUEINGLIB_PROJ\) -L$$\(INET4_PROJ\)/src -L$$\(QUEUEINGLIB_PROJ\) -lINET$$\(D\) -lqueueinglib$$\(D\)

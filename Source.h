@@ -37,13 +37,18 @@ class Source : public cSimpleModule
         int flowCounter;
         int maxFlows;
         int numActiveFlows;
+        int numSwitches;
         string srcName;
-        string dstName;
+        int deterministic_load_balance_ptr = 0;
+
+        /* active flow queue */
         list<Flow> activeFlows;
         RoundRobinPtr it;
         SketchLoadBalance lb;
-        vector<int> used_fragments; // used if load balance policy is suicide
-        int deterministic_load_balance_ptr = 0;
+
+        /* routing table */
+        typedef std::map<int, vector<int>> RoutingTable;  // destaddr -> list of gateindex
+        RoutingTable rtable;
 
         /* two events can happen in the simulator */
         cMessage* flowArrivalMsg;
@@ -52,8 +57,9 @@ class Source : public cSimpleModule
         simtime_t startTime;
         simtime_t stopTime;
 
+        /* statistics */
         static simsignal_t flowSizeSignal;
-        simsignal_t createdSignal;
+        static simsignal_t createdSignal;
 
     protected:
         virtual void initialize() override;
@@ -63,10 +69,12 @@ class Source : public cSimpleModule
         virtual void scheduleNextPacket();
         virtual Flow createFlow();
         virtual void txPacket();
+        void populateRoutingTable();
+        vector<int> getRouteTo(int dst);
         void route(Packet* pkt);
 
-        void choose_fragments(Flow& f);
-        vector<int> choose_K_at_random_without_repetition(int k);
+        void chooseFragments(Flow& f);
+        deque<int> randomSubset(int k, int n);
 
     public:
         ~Source();

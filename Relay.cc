@@ -41,11 +41,23 @@ void Relay::initialize()
 void Relay::handleMessage(cMessage *msg)
 {
     Packet* pkt = check_and_cast<Packet*>(msg);
-    int n_hash = pkt->getFlow().useSketch[switch_id];
-    if (n_hash) {
-        EV_INFO << "Updating sketch for packet #" << pkt->getFlow().seq << " of flow <" << pkt->getFlow().id << ">" << endl;
-        perform_measure(pkt, n_hash);
+
+    EV_INFO << "Forwarding packet #" << pkt->getFlow().seq << " of flow <" << pkt->getFlow().id << ">";
+    for (const auto& x : pkt->getFlow().FWI) {
+        EV_INFO << x;
     }
+    EV_INFO << endl;
+
+    int fwi = pkt->getFlow().FWI.front();
+
+    // measure flow if it has to
+    if (fwi) {
+        EV_INFO << "Updating sketch" << endl;
+        pkt->getFlow().useSketch[switch_id] = fwi;
+        perform_measure(pkt, fwi);
+    }
+    // remove control information and forward
+    pkt->getFlow().FWI.pop_front();
     forward(pkt);
 }
 
@@ -56,6 +68,9 @@ void Relay::forward(Packet* pkt) {
     send(pkt, "out", outGate);
 }
 
+/* ask the sketch to update counters for this flow. n_hash specifies in how many
+ * hash functions the memory have to be organized for this flow
+ */
 void Relay::perform_measure(Packet* pkt, int n_hash) {
     const char* item = pkt->getFlow().id.c_str();
 

@@ -19,7 +19,9 @@
 
 cplusplus {{
 	#include <vector>
-	typedef std::vector<int> vec;
+	#include <deque>
+	typedef std::vector<int> intvec;
+	typedef std::deque<int> intdeque;
 }}
 
 // if want to use this starting from omnet6.0, you should include a makefrag with
@@ -27,7 +29,8 @@ cplusplus {{
 // 
 // MSGC:=$(MSGC) --msg4
 //   
-class noncobject vec;
+class noncobject intvec;
+class noncobject intdeque;
 
 // otherwise use the latest notation:
 
@@ -40,9 +43,13 @@ struct Flow {
 	string id;	// flow id
     long size;	// flow size
     int seq = 0;// transmitted packets
-    string src;	// source
-	string dst; // destination	
-	vec useSketch;
+    int src;	// source
+	int dst; // destination	
+	// boolean array with one elem per network switch: 1 if sketch is used
+	// needed to record statistics at the sink
+	intvec useSketch;	
+	// boolean array Fragment Write Information: 1 if fragment has to be used
+	intdeque FWI;
 }
 
 message Packet {
