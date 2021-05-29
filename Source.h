@@ -50,6 +50,9 @@ class Source : public cSimpleModule
         typedef std::map<int, vector<int>> RoutingTable;  // destaddr -> list of gateindex
         RoutingTable rtable;
 
+
+        cTopology* topology;
+
         /* two events can happen in the simulator */
         cMessage* flowArrivalMsg;
         cMessage* txTimeMsg;
@@ -72,6 +75,8 @@ class Source : public cSimpleModule
         void populateRoutingTable();
         vector<int> getRouteTo(int dst);
         void route(Packet* pkt);
+        void route2(Packet* pkt);
+        int ecmp(vector<int> interfaces, Flow& f);
 
         void chooseFragments(Flow& f);
         deque<int> randomSubset(int k, int n);

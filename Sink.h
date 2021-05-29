@@ -32,6 +32,7 @@ class Sink : public cSimpleModule
         static simsignal_t endErrorSignal;
         static simsignal_t pktErrorSignal;
         static simsignal_t usedSketchSignal;
+        static simsignal_t numHopSignal;
 
     private:
         string sketch_vec_to_str(vector<int> v);

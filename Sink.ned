@@ -43,6 +43,7 @@ simple Sink
 		@signal[endErrors](type=long);
 		@signal[pktErrors](type=long);
 		@signal[usedSketches](type=long);
+		@signal[traversedSwitches](type=long);
 		
 		@statistic[flowSize](title="Flow sizes"; record=vector);
 		@statistic[errors](title="Estimation errors"; record=vector);
@@ -51,7 +52,7 @@ simple Sink
 		@statistic[pktErrors](title="Estimation errors packet by packet"; record=vector);
 		@statistic[pktsRx](title="Number of received packets"; source=flowSize; record=sum); // number of packets received
 		@statistic[usedSketches](title="Sketches IDs storing flows"; record=vector);
-		
+		@statistic[traversedSwitches](record=vector); // traversed switches along flow path
 		
     gates:
         input in[];

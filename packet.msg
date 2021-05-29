@@ -21,6 +21,7 @@ cplusplus {{
 	#include <vector>
 	#include <deque>
 	typedef std::vector<int> intvec;
+	typedef std::vector<void*> ptrvec;
 	typedef std::deque<int> intdeque;
 }}
 
@@ -30,6 +31,7 @@ cplusplus {{
 // MSGC:=$(MSGC) --msg4
 //   
 class noncobject intvec;
+class noncobject ptrvec;
 class noncobject intdeque;
 
 // otherwise use the latest notation:
@@ -45,10 +47,19 @@ struct Flow {
     int seq = 0;// transmitted packets
     int src;	// source
 	int dst; // destination	
-	// boolean array with one elem per network switch: 1 if sketch is used
-	// needed to record statistics at the sink
-	intvec useSketch;	
+	int dstIndex;
+	long app;		// random [1, 2**32] representing app
+//	int hopCount = 0;	// at flow level 
+	
+	intvec SRI;		// Source Routing Intformation (i.e., list of gate indices)
+	
+	// Indicator where a flow has been recorded. 
+	// Each switch adds pointer to itself in case FWI = 1 (i.e., flow has been monitored)
+	ptrvec useSketch;
+	
 	// boolean array Fragment Write Information: 1 if fragment has to be used
+	// Note: the size of this depends on the path length and each hop will change its size by removing 
+	// its own FWI
 	intdeque FWI;
 }
 
@@ -58,6 +69,4 @@ message Packet {
     int route[];	// source routing: here interface ids where to send
     long min = -1;	// current minimum for CMS
     
-    //double arrayField1[];
-    //double arrayField2[10];
 }

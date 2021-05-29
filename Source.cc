@@ -8,6 +8,7 @@
 //
 
 #include "Source.h"
+#include "Relay.h"
 #include "inet/common/Topology.h"
 #include <sstream>
 #include <numeric>
@@ -26,11 +27,7 @@ void Source::initialize()
 
     flowCounter = 0;
     numActiveFlows = 0;
-    cModule* switchVec = getModuleByPath("^.switch[0]");
-
-    if (switchVec) {
-        numSwitches = switchVec->getVectorSize();
-    }
+    numSwitches = getAncestorPar("numSwitches");
 
     startTime = par("startTime");
     stopTime = par("stopTime");
@@ -48,8 +45,11 @@ void Source::initialize()
         lb = SketchLoadBalance::SUICIDE;
     }
 
-    EV_INFO << "Compute routing" << endl;
-    populateRoutingTable();
+    topology = new cTopology("topology");
+    // include in topology all sources, sinks and switches (would be better to use @properties)
+    topology->extractByModulePath(cStringTokenizer("**.source* **.sink* **.switch*").asVector());
+
+    //populateRoutingTable();
 
     flowArrivalMsg = new cMessage("flow arrival", FLOW_ARRIVAL);
     txTimeMsg = new cMessage("tx ended", PACKET_TX);
@@ -152,7 +152,7 @@ void Source::txPacket() {
     Flow f = *it;   // now take flow
     Packet* pkt = new Packet(); // create packet and fill with flow and route
     pkt->setFlow(f);
-    route(pkt);
+    route2(pkt);
 
     EV_INFO << "Tx packet #" << f.seq << " of flow <" << f.id << ">" << endl;
     send(pkt, "out");
@@ -198,6 +198,7 @@ vector<int> Source::getRouteTo(int dst) {
     return (*it).second;
 }
 
+
 /* route packet of given flow */
 void Source::route(Packet* pkt) {
 
@@ -212,17 +213,47 @@ void Source::route(Packet* pkt) {
 
 }
 
+/* Fat-Tree route */
+void Source::route2(Packet* pkt) {
+//        vector<int> outGates;
+//        int destination = pkt->getFlow().dstIndex;
+//
+//        // start from first switch
+//        cTopology::Node* currentNode = topology->getNodeFor(this)->getLinkOut(0)->getRemoteNode();
+//        while (currentNode->getNumOutLinks() == 0) {    // finchè non siamo arrivati alla sink
+//
+//            Relay *relay = check_and_cast<Relay*>(currentNode->getModule()->getSubmodule("relay"));
+//            vector<int> interfaces = relay->getRouteTo(destination);
+//            int outIf = ecmp(interfaces, pkt->getFlow());
+//            outGates.push_back(outIf);
+//            currentNode = currentNode->getLinkOut(outIf)->getRemoteNode();
+//
+//        }
+//        return outGates;
+    vector<int> r = pkt->getFlow().SRI;
+    pkt->setRouteArraySize(r.size());
+    // add forwarding interfaces (setRoute requires reverse order because
+    // we will trim size with setArraySize at relay units, cutting out last elements)
+    for(int i=0; i < r.size(); i++){
+        pkt->setRoute(r.size()-1-i, r[i]);
+    }
+}
+
+int Source::ecmp(vector<int> interfaces, Flow& f) {
+    return interfaces[(f.src ^ f.dst ^ f.app) % interfaces.size()];
+}
+
 /*
  * Chooses a subset of fragments at random among those available
  * on flow path.
  */
 void Source::chooseFragments(Flow& f) {
 
-    int numHop = getRouteTo(f.dst).size();
+    int numHop = f.SRI.size();
     int k = MIN((int)getAncestorPar("K"), numHop);
 
     // switches along the path will fill this
-    f.useSketch.assign(numSwitches, 0);
+    f.useSketch.assign(numSwitches, nullptr); // 0 instead of nullptr
 
     switch (lb) {   // depending on lb policy
 
@@ -289,6 +320,22 @@ Flow Source::createFlow()
     f.id = fid;
     f.src = getId();
     f.dst = getModuleByPath(dstName.c_str())->getId();
+    f.dstIndex = getModuleByPath(dstName.c_str())->getIndex();
+    f.app = intuniform(0, 65536-1);
+
+    ///////////////////////////// TODO move in dedicated function
+    cTopology::Node* currentNode = topology->getNodeFor(this)->getLinkOut(0)->getRemoteNode();
+    while (currentNode->getNumOutLinks() != 0) {    // finchè non siamo arrivati alla sink
+
+        Relay *relay = check_and_cast<Relay*>(currentNode->getModule()->getSubmodule("relay"));
+        vector<int> interfaces = relay->getRouteTo(f.dstIndex);
+        int outIf = interfaces[intuniform(0, interfaces.size()-1)];
+        //ecmp(interfaces, f);
+        f.SRI.push_back(outIf);
+        currentNode = currentNode->getLinkOut(outIf)->getRemoteNode();
+
+    }
+    ///////////////////////////
 
     chooseFragments(f);
 
@@ -304,6 +351,8 @@ void Source::finish()
     cancelAndDelete(flowArrivalMsg);
     cancelAndDelete(txTimeMsg);
     emit(createdSignal, flowCounter);
+
+    delete topology;
 }
 
 Source::~Source()

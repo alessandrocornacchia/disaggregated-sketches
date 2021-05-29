@@ -7,35 +7,17 @@
 // `license' for details on this and other legal matters.
 //
 
-#include <omnetpp.h>
-#include "CountMinSketch.h"
-#include "packet_m.h"
+#include "Relay.h"
 
 using namespace omnetpp;
-
-/**
- * Sends received packets to one of the outputs; see NED file for more info
- */
-class Relay : public cSimpleModule
-{
-    protected:
-        virtual void initialize() override;
-        virtual void handleMessage(cMessage *msg) override;
-
-        virtual void forward(Packet* msg);
-        virtual void perform_measure(Packet* msg, int n_hash);
-
-    protected:
-        CountMinSketch* cms;
-        int switch_id;
-};
 
 Define_Module(Relay);
 
 void Relay::initialize()
 {
     cms = check_and_cast<CountMinSketch*>(getParentModule()->getSubmodule("sketch"));
-    switch_id = getParentModule()->getIndex();
+    switch_id = getParentModule()->getIndex() + (int)par("indexOffset");
+    populateRoutingTables();
 }
 
 void Relay::handleMessage(cMessage *msg)
@@ -53,7 +35,7 @@ void Relay::handleMessage(cMessage *msg)
     // measure flow if it has to
     if (fwi) {
         EV_INFO << "Updating sketch" << endl;
-        pkt->getFlow().useSketch[switch_id] = fwi;
+        pkt->getFlow().useSketch[switch_id] = getParentModule(); //fwi;
         perform_measure(pkt, fwi);
     }
     // remove control information and forward
@@ -85,3 +67,46 @@ void Relay::perform_measure(Packet* pkt, int n_hash) {
 
 }
 
+void Relay::populateRoutingTables() {
+
+    inet::Topology *topo = new inet::Topology();
+    routes.resize(getModuleByPath("sink[0]")->getVectorSize());
+
+    // include in topology all sinks and switches (would be better to use @properties)
+    topo->extractByModulePath(cStringTokenizer("**.sink* **.switch*").asVector());
+    EV << "Topology found " << topo->getNumNodes() << " nodes\n";
+
+    // switch containing this relay unit
+    inet::Topology::Node *thisNode = topo->getNodeFor(this->getParentModule());
+
+    // find and store routes to all other hosts
+    for (int i = 0; i < topo->getNumNodes(); i++) {
+
+        string nodeName = string(topo->getNode(i)->getModule()->getName());
+        if (nodeName.find("sink") == string::npos) {
+            continue;  // compute routes toward sink nodes only
+        }
+
+        topo->calculateUnweightedMultiShortestPathsTo(topo->getNode(i));
+
+        if (thisNode->getNumPaths() == 0) {
+            continue;  // not connected
+        } else {    // add all output interfaces towards destination host
+
+            EV << "Route for " << topo->getTargetNode()->getModule()->getFullName() << " has interfaces [";
+            int destId = topo->getNode(i)->getModule()->getIndex();
+            for (auto p : thisNode->getAllPaths()) {
+                int outGateId = p->getLocalGate()->getIndex();
+                routes[destId].push_back(outGateId);
+                EV << outGateId;
+            }
+            EV << "]" << endl;
+        }
+
+    }
+    delete topo;
+}
+
+vector<int> Relay::getRouteTo(int dest) {
+    return routes[dest];
+}

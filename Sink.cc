@@ -11,6 +11,7 @@
 #include "packet_m.h"
 #include "CountMinSketch.h"
 
+simsignal_t Sink::numHopSignal = registerSignal("traversedSwitches");
 simsignal_t Sink::usedSketchSignal = registerSignal("usedSketches");
 simsignal_t Sink::flowSizeSignal = registerSignal("flowSize");
 simsignal_t Sink::errorSignal = registerSignal("errors");
@@ -41,6 +42,10 @@ void Sink::handleMessage(cMessage *msg)
     } else {
 
         Packet *pkt = check_and_cast<Packet *>(msg);
+
+        if (pkt->getFlow().dst != this->getId()) {
+            throw cRuntimeError("Unwanted reception: packet destination doesn't correspond to sink address");
+        }
 
         // evaluate current error (i.e. sequence - estimation)
         int error = pkt->getMin() - pkt->getFlow().seq;
@@ -79,8 +84,9 @@ void Sink::handleMessage(cMessage *msg)
  */
 string Sink::sketch_vec_to_str(vector<int> v) {
     string s;
-    for (auto x : v)
+    for (auto x : v) {
         s += (s.empty() ? "" : ".") + to_string(x);
+    }
     return s;
 }
 
@@ -111,11 +117,12 @@ void Sink::query_sketches() {
         unsigned int est = UINT_MAX;
         for (int i=0; i < f.useSketch.size(); i++) {
             if (f.useSketch[i]) {   // query fragments where flows where stored
-                string pathName = string("^.switch[") + to_string(i) + string("].sketch");
-                cModule* mod = getModuleByPath(pathName.c_str());
+                //string pathName = string("^.switch[") + to_string(i) + string("].sketch");
+                //cModule* mod = getModuleByPath(pathName.c_str());
+                cModule* mod = ((cModule*)f.useSketch[i])->getSubmodule("sketch");
                 CountMinSketch* cms = check_and_cast<CountMinSketch*>(mod);
                 const char* item = f.id.c_str();
-                unsigned local_est = cms->estimate(item, f.useSketch[i]);
+                unsigned local_est = cms->estimate(item, 1); //f.useSketch[i]);
                 if (local_est < est) {
                     est = local_est;
                 }
@@ -124,7 +131,12 @@ void Sink::query_sketches() {
 
         emit(Sink::endFlowSizeSignal, f.size);
         emit(Sink::endErrorSignal, est - f.size);
-        emit(Sink::usedSketchSignal, sketch_vec_to_long(f.useSketch));
+        vector<int> v;
+        for (auto x: f.useSketch) {
+            v.push_back(x ? 1 : 0);
+        }
+        emit(Sink::usedSketchSignal, sketch_vec_to_long(v));
+        emit(Sink::numHopSignal, f.SRI.size());
 
     }
 }

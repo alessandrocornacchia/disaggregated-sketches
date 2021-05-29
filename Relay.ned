@@ -16,6 +16,8 @@ simple Relay
 {
     parameters:
         @display("i=block/switch");
+	    int indexOffset = default(0);
+	    
     gates:
         input in[];
         output out[];
