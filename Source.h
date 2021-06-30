@@ -32,7 +32,7 @@ class Source : public cSimpleModule
 
     protected:
 
-        enum SketchLoadBalance {RANDOM, DETERMINISTIC, SUICIDE};
+        enum SketchLoadBalance {RANDOM, DETERMINISTIC, SUICIDE, HEURISTIC};
 
         int flowCounter;
         int maxFlows;
@@ -80,6 +80,7 @@ class Source : public cSimpleModule
 
         void chooseFragments(Flow& f);
         deque<int> randomSubset(int k, int n);
+        deque<int> heu1(int n);
 
     public:
         ~Source();

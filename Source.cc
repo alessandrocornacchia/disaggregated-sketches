@@ -43,6 +43,8 @@ void Source::initialize()
         lb = SketchLoadBalance::DETERMINISTIC;
     } else if (lbpar == "SUICIDE") {
         lb = SketchLoadBalance::SUICIDE;
+    } else if (lbpar == "HEURISTIC") {
+        lb = SketchLoadBalance::HEURISTIC;
     }
 
     topology = new cTopology("topology");
@@ -99,6 +101,7 @@ void Source::populateRoutingTable() {
 
                 cGate *outGate = currentNode->getPath(0)->getLocalGate();
                 int gateIndex = outGate->getIndex();
+                ASSERT(outGate->getOwnerModule() == currentNode->getModule());
                 routeToTarget.push_back(gateIndex);
                 currentNode = currentNode->getPath(0)->getRemoteNode();
             }
@@ -284,6 +287,10 @@ void Source::chooseFragments(Flow& f) {
             }
             break;
 
+        case HEURISTIC:
+            f.FWI = heu1(numHop);
+            break;
+
         default:
             break;
     }
@@ -302,6 +309,25 @@ deque<int> Source::randomSubset(int k, int n) {
         idx = intuniform(0, fragments.size()-1);
         choice[fragments[idx]] = (int)par("numSketchFragments");
         fragments.erase(fragments.begin()+idx);
+    }
+    return choice;
+}
+
+deque<int> Source::heu1(int n) {
+    deque<int> choice(n, 0); // init to range starting from zero
+    int nf = (int)par("numSketchFragments");
+    if (n==1) {
+        choice[0] = nf;
+    } else if (n == 3) {
+        choice[0] = nf;
+        choice[1] = nf;
+        choice[2] = nf;
+    } else if (n==5) {
+        choice[1] = nf;
+        choice[2] = nf;
+        choice[3] = nf;
+    } else {
+        throw cRuntimeError("Number of hops not supported");
     }
     return choice;
 }

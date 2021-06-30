@@ -51,7 +51,14 @@ void Sink::handleMessage(cMessage *msg)
         int error = pkt->getMin() - pkt->getFlow().seq;
 
         EV_INFO << "Received packet #" << pkt->getFlow().seq << " of flow <" << pkt->getFlow().id << ">" << endl;
-        EV_INFO << "Flow estimation has error " << error << endl;
+        EV_INFO << "Current flow size estimation error: " << error << endl;
+        EV_INFO << "Flow has been recorded in switches: ";
+        for (auto x: pkt->getFlow().useSketch) {
+            if (x) {
+                EV_INFO << to_string(((cModule*)x)->getIndex()) << ".";
+            }
+        }
+        EV_INFO << endl;
         emit(Sink::pktErrorSignal, error);
 
         // at last packet collect stats
