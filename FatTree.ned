@@ -21,7 +21,7 @@ network FatTree
 {
      parameters:
         int k = default(4);	// k of Fat-Tree
-        int K = default(2);
+        double K = default(2); // K parameter of disaggregated sketches
         
         int numSwitches_L1 = int((k^2)/2);
         int numSwitches_L2 = int((k^2)/2);
@@ -37,6 +37,9 @@ network FatTree
 		switch_L1[*].relay.indexOffset = 0;
 		switch_L2[*].relay.indexOffset = numSwitches_L1;
 		switch_L3[*].relay.indexOffset = numSwitches_L2;
+		
+		@statisticTemplate[efpr](record=stats,vector?);
+		@statisticTemplate[ubfpr](record=stats,vector?);
 		
     submodules:
 		

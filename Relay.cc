@@ -97,7 +97,7 @@ void Relay::populateRoutingTables() {
             int destId = topo->getNode(i)->getModule()->getIndex();
             for (auto p : thisNode->getAllPaths()) {
                 int outGateId = p->getLocalGate()->getIndex();
-                routes[destId].push_back(outGateId);
+                routes[destId].push_back(p->getLocalGate());
                 EV << outGateId;
             }
             EV << "]" << endl;
@@ -107,6 +107,6 @@ void Relay::populateRoutingTables() {
     delete topo;
 }
 
-vector<int> Relay::getRouteTo(int dest) {
+vector<cGate*> Relay::getRouteTo(int dest) {
     return routes[dest];
 }

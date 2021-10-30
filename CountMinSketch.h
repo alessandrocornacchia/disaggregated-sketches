@@ -32,6 +32,7 @@ class CountMinSketch : public cSimpleModule {
 
         static simsignal_t pktProcessedSignal;
         static simsignal_t counterLoadSignal;
+        static simsignal_t elementInsertedSignal;
 
     private:
         // width, depth
@@ -52,6 +53,7 @@ class CountMinSketch : public cSimpleModule {
 
           // total count so far
           unsigned int total;
+          unsigned int unique_elements;
 
           // array of arrays of counters
           int **C;
@@ -88,6 +90,15 @@ class CountMinSketch : public cSimpleModule {
 
       // return total count
       unsigned int totalcount();
+
+      // return total count normalized to number of counters
+      double normalizedtotalcount();
+
+      // return total unique elements counted in the sketch
+      unsigned int total_unique_elements();
+
+      // notify the sketch that a new element has arrived (used to update stats)
+      void notify_new_element();
 
       // generates a hash value for a string
       // same as djb2 hash function

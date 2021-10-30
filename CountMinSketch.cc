@@ -13,6 +13,7 @@
 
 simsignal_t CountMinSketch::pktProcessedSignal = registerSignal("packets");
 simsignal_t CountMinSketch::counterLoadSignal = registerSignal("counterLoad");
+simsignal_t CountMinSketch::elementInsertedSignal = registerSignal("elementInserted");
 
 Define_Module(CountMinSketch);
 
@@ -46,6 +47,7 @@ void CountMinSketch::initialize()
     d = (int)par("d");
     w = (int)par("w");
     total = 0;
+    unique_elements = 0;
 
     if (d == -1 && w == -1) {
         eps = par("eps").doubleValue();
@@ -63,6 +65,7 @@ void CountMinSketch::initialize()
     init_hashes();
 
     WATCH(C);
+    WATCH(unique_elements);
 }
 
 void CountMinSketch::handleMessage(cMessage *msg)
@@ -72,7 +75,7 @@ void CountMinSketch::handleMessage(cMessage *msg)
 
 void CountMinSketch::finish() {
 
-    emit(CountMinSketch::counterLoadSignal, double(total)/(d*w));
+    emit(CountMinSketch::counterLoadSignal, normalizedtotalcount());
 
     // free array of counters, C
       unsigned int i;
@@ -86,6 +89,11 @@ void CountMinSketch::finish() {
         delete[] hashes[i];
       }
       delete[] hashes;
+}
+
+double CountMinSketch::normalizedtotalcount()
+{
+    return double(total)/(d*w);
 }
 
 // CountMinSkectch destructor
@@ -108,6 +116,16 @@ void CountMinSketch::finish() {
 // total count of all items in the sketch
 unsigned int CountMinSketch::totalcount() {
   return total;
+}
+
+unsigned int CountMinSketch::total_unique_elements() {
+  return unique_elements;
+}
+
+void CountMinSketch::notify_new_element() {
+    EV_INFO << "New unique element inserted" << endl;
+    unique_elements++;
+    emit(CountMinSketch::elementInsertedSignal, 1L);
 }
 
 // hashes on row j to get one counter

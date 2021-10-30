@@ -13,6 +13,7 @@
 #include <sstream>
 #include <numeric>
 #include <algorithm>
+#include <utility>
 
 simsignal_t Source::flowSizeSignal = registerSignal("flowSize");
 simsignal_t Source::createdSignal = registerSignal("created");
@@ -39,8 +40,8 @@ void Source::initialize()
 
     if (lbpar == "RANDOM") {
         lb = SketchLoadBalance::RANDOM;
-    } else if (lbpar == "DETERMINISTIC") {
-        lb = SketchLoadBalance::DETERMINISTIC;
+    } else if (lbpar == "FLOWBALANCING") {
+        lb = SketchLoadBalance::FLOWBALANCING;
     } else if (lbpar == "SUICIDE") {
         lb = SketchLoadBalance::SUICIDE;
     } else if (lbpar == "HEURISTIC") {
@@ -95,14 +96,13 @@ void Source::populateRoutingTable() {
             // source routing start computing routes from first hop in the network
             // i.e., source host output interface is not included
             cTopology::Node *currentNode = thisNode->getPath(0)->getRemoteNode();
-            std::vector<int> routeToTarget;
+            std::vector<cGate*> routeToTarget;
             // walk through topology towards target node and collect list of forwarding interface indexes
             while (currentNode != topo->getTargetNode()) {
 
                 cGate *outGate = currentNode->getPath(0)->getLocalGate();
                 int gateIndex = outGate->getIndex();
-                ASSERT(outGate->getOwnerModule() == currentNode->getModule());
-                routeToTarget.push_back(gateIndex);
+                routeToTarget.push_back(outGate);
                 currentNode = currentNode->getPath(0)->getRemoteNode();
             }
 
@@ -110,7 +110,7 @@ void Source::populateRoutingTable() {
             rtable[address] = routeToTarget;
             EV << "Route towards " << topo->getTargetNode()->getModule()->getFullName() << " with address " << address << " gateIndex is {";
             for (int i=0; i < routeToTarget.size()-1; i++) {
-              EV << routeToTarget[i] << '-';
+              EV << routeToTarget[i]->getIndex() << '-';
             }
             EV << routeToTarget.back() << "}" << endl;
 
@@ -145,7 +145,6 @@ void Source::handleMessage(cMessage *msg)
             txPacket();
         }
     }
-
 }
 
 void Source::txPacket() {
@@ -192,7 +191,7 @@ void Source::scheduleNextPacket() {
 }
 
 /* reads routing table */
-vector<int> Source::getRouteTo(int dst) {
+vector<cGate*> Source::getRouteTo(int dst) {
     RoutingTable::iterator it = rtable.find(dst);
     if (it == rtable.end()) {
         string msg = string("Destination ") + to_string(dst) + string(" not found");
@@ -205,13 +204,13 @@ vector<int> Source::getRouteTo(int dst) {
 /* route packet of given flow */
 void Source::route(Packet* pkt) {
 
-    vector<int> outGates = getRouteTo(pkt->getFlow().dst);
+    vector<cGate*> outGates = getRouteTo(pkt->getFlow().dst);
     pkt->setRouteArraySize(outGates.size());
 
     // add forwarding interfaces (setRoute requires reverse order because
     // we will trim size with setArraySize at relay units, cutting out last elements)
     for(int i=0; i < outGates.size(); i++){
-        pkt->setRoute(outGates.size()-1-i, outGates[i]);
+        pkt->setRoute(outGates.size()-1-i, outGates[i]->getIndex());
     }
 
 }
@@ -233,12 +232,12 @@ void Source::route2(Packet* pkt) {
 //
 //        }
 //        return outGates;
-    vector<int> r = pkt->getFlow().SRI;
+    vector<void*> r = pkt->getFlow().SRI;
     pkt->setRouteArraySize(r.size());
     // add forwarding interfaces (setRoute requires reverse order because
     // we will trim size with setArraySize at relay units, cutting out last elements)
     for(int i=0; i < r.size(); i++){
-        pkt->setRoute(r.size()-1-i, r[i]);
+        pkt->setRoute(r.size()-1-i, ((cGate*)r[i])->getIndex());
     }
 }
 
@@ -253,7 +252,21 @@ int Source::ecmp(vector<int> interfaces, Flow& f) {
 void Source::chooseFragments(Flow& f) {
 
     int numHop = f.SRI.size();
-    int k = MIN((int)getAncestorPar("K"), numHop);
+    double K = (double)getAncestorPar("K");
+    int k_l = floor(K);
+    int k_t = ceil(K);
+    // probability of using floor(K) sketches
+    double p = (K - k_t) / (k_l - k_t);
+    int k;
+    if (k_t == k_l) {
+        k = k_t;
+    } else {
+        k = (uniform(0,1) <= p ? k_l : k_t);
+    }
+    // actual K for this flow
+    k = MIN(k, numHop);
+
+    EV << "Using K=" << to_string(k) << endl;
 
     // switches along the path will fill this
     f.useSketch.assign(numSwitches, nullptr); // 0 instead of nullptr
@@ -265,9 +278,9 @@ void Source::chooseFragments(Flow& f) {
             f.FWI = randomSubset(k, numHop);
             break;
 
-        case DETERMINISTIC: { // deterministic load balancing
-            int from = deterministic_load_balance_ptr;
-            int to = (deterministic_load_balance_ptr + k) % numHop;
+        case FLOWBALANCING: { // FLOWBALANCING load balancing
+/*          int from = FLOWBALANCING_load_balance_ptr;
+            int to = (FLOWBALANCING_load_balance_ptr + k) % numHop;
             EV_INFO << "Using fragments from " << from << " to " << to << endl;
             f.FWI.assign(numHop, 0); // init to all zero
 
@@ -275,7 +288,8 @@ void Source::chooseFragments(Flow& f) {
                 f.FWI[i] = 1;
             }
 
-            deterministic_load_balance_ptr = (deterministic_load_balance_ptr + k) % numHop;
+            FLOWBALANCING_load_balance_ptr = (FLOWBALANCING_load_balance_ptr + k) % numHop; */
+            f.FWI = flowBalancing(f, k);
             break;
         }
 
@@ -293,6 +307,17 @@ void Source::chooseFragments(Flow& f) {
 
         default:
             break;
+    }
+
+    // notify to sketch modules that have been chosen that a new element is inserted
+    for (int i=0; i < f.FWI.size(); i++) {
+        if (f.FWI[i]) {
+            //EV_INFO << "Sketch is updated on module: " << ((cGate*)f.SRI[i])->getOwnerModule()->getFullName() << endl;
+            //EV_INFO << "Gate index" << ((cGate*)f.SRI[i])->getOwnerModule()->getIndex() << endl;
+
+            CountMinSketch* cms = check_and_cast<CountMinSketch*>(((cGate*)f.SRI[i])->getOwnerModule()->getSubmodule("sketch"));
+            cms->notify_new_element();
+        }
     }
 }
 
@@ -332,6 +357,32 @@ deque<int> Source::heu1(int n) {
     return choice;
 }
 
+deque<int> Source::flowBalancing(Flow& f, int k) {
+
+    int n = f.SRI.size();
+    deque<int> choice(n, 0); // init to range starting from zero
+    int nf = (int)par("numSketchFragments");
+
+    vector<pair<unsigned int, int>> loads;   // pair <num unique flows, switch index in the path>
+
+    // for all hops, access the sketch and query the number of unique flows stored inside
+    for (int i=0; i < f.SRI.size(); i++) {
+        cGate* gate = (cGate*)f.SRI[i];
+        cModule* mod = gate->getOwnerModule()->getSubmodule("sketch");
+        CountMinSketch* cms = check_and_cast<CountMinSketch*>(mod);
+        loads.push_back(make_pair(cms->total_unique_elements(), i));
+    }
+
+    sort(loads.begin(), loads.end());  // sort in ascending order
+
+    // now take the first K pairs (less loaded sketches) and get the sketch to use
+    // (its index in the path is contained into pair.second)
+    for (int i=0; i < k; i++) {
+        choice[loads[i].second] = nf;
+    }
+    return choice;
+}
+
 Flow Source::createFlow()
 {
     long fs = MIN((long)par("maxFlowSize"), ceil(par("flowSize").doubleValue()));  // add new flow to the list of active flows
@@ -354,11 +405,11 @@ Flow Source::createFlow()
     while (currentNode->getNumOutLinks() != 0) {    // finchè non siamo arrivati alla sink
 
         Relay *relay = check_and_cast<Relay*>(currentNode->getModule()->getSubmodule("relay"));
-        vector<int> interfaces = relay->getRouteTo(f.dstIndex);
-        int outIf = interfaces[intuniform(0, interfaces.size()-1)];
+        vector<cGate*> interfaces = relay->getRouteTo(f.dstIndex);
+        cGate* outIf = interfaces[intuniform(0, interfaces.size()-1)];
         //ecmp(interfaces, f);
         f.SRI.push_back(outIf);
-        currentNode = currentNode->getLinkOut(outIf)->getRemoteNode();
+        currentNode = currentNode->getLinkOut(outIf->getIndex())->getRemoteNode();
 
     }
     ///////////////////////////

@@ -28,7 +28,7 @@ using namespace std;
 class Relay : public cSimpleModule
 {
     protected:
-        vector<vector<int>> routes;     // sink -> [ interfaces ]
+        vector<vector<cGate*>> routes;     // sink -> [ interfaces ]
 
     protected:
         virtual void initialize() override;
@@ -43,8 +43,7 @@ class Relay : public cSimpleModule
         int switch_id;
 
     public:
-        vector<int> getRouteTo(int dest);
-
+        vector<cGate*> getRouteTo(int dest);
 };
 
 #endif

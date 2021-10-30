@@ -51,7 +51,7 @@ struct Flow {
 	long app;		// random [1, 2**32] representing app
 //	int hopCount = 0;	// at flow level 
 	
-	intvec SRI;		// Source Routing Intformation (i.e., list of gate indices)
+	ptrvec SRI;		// Source Routing Intformation (i.e., list of gates)
 	
 	// Indicator where a flow has been recorded. 
 	// Each switch adds pointer to itself in case FWI = 1 (i.e., flow has been monitored)

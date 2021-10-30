@@ -32,7 +32,7 @@ class Source : public cSimpleModule
 
     protected:
 
-        enum SketchLoadBalance {RANDOM, DETERMINISTIC, SUICIDE, HEURISTIC};
+        enum SketchLoadBalance {RANDOM, FLOWBALANCING, SUICIDE, HEURISTIC};
 
         int flowCounter;
         int maxFlows;
@@ -47,7 +47,7 @@ class Source : public cSimpleModule
         SketchLoadBalance lb;
 
         /* routing table */
-        typedef std::map<int, vector<int>> RoutingTable;  // destaddr -> list of gateindex
+        typedef std::map<int, vector<cGate*>> RoutingTable;  // destaddr -> list of gateindex
         RoutingTable rtable;
 
 
@@ -73,7 +73,7 @@ class Source : public cSimpleModule
         virtual Flow createFlow();
         virtual void txPacket();
         void populateRoutingTable();
-        vector<int> getRouteTo(int dst);
+        vector<cGate*> getRouteTo(int dst);
         void route(Packet* pkt);
         void route2(Packet* pkt);
         int ecmp(vector<int> interfaces, Flow& f);
@@ -81,6 +81,7 @@ class Source : public cSimpleModule
         void chooseFragments(Flow& f);
         deque<int> randomSubset(int k, int n);
         deque<int> heu1(int n);
+        deque<int> flowBalancing(Flow& f, int k);
 
     public:
         ~Source();

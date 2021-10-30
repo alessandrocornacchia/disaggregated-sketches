@@ -20,6 +20,7 @@ simple Sink
         
         int maxFlows = default(-1);
         double epochDuration @unit(s) = default(0s);	// set to an interval if needed
+        string heavyHitterThresholds;
         
 //        @signal[lifeTime](type="simtime_t");
 //        @signal[totalQueueingTime](type="simtime_t");
@@ -53,6 +54,12 @@ simple Sink
 		@statistic[pktsRx](title="Number of received packets"; source=flowSize; record=sum); // number of packets received
 		@statistic[usedSketches](title="Sketches IDs storing flows"; record=vector);
 		@statistic[traversedSwitches](record=vector); // traversed switches along flow path
+		
+		@signal[hht*-efpr](type=long); // note the wildcard 
+		@statisticTemplate[efpr](record=stats,vector?);
+		
+		@signal[hht*-ubfpr](type=double); // note the wildcard 
+		@statisticTemplate[ubfpr](record=stats,vector?);
 		
     gates:
         input in[];

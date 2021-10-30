@@ -29,11 +29,10 @@ simple CountMinSketch
        	
        	@signal[packets];
        	@signal[counterLoad];
+       	@signal[elementInserted];
+       	
         @statistic[packets](title="number of packets processed"; record=count);
         @statistic[counterLoad](title="Average value on counter"; record=last);
-        // other ideas are number of collisions
-         
-    //gates:
-    //   input in;
-    //    output out;
+        @statistic[elementInserted](record=sum);
+        
 }

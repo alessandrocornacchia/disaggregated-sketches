@@ -30,6 +30,59 @@ void Sink::initialize()
         EV_INFO << "Measurement epoch ends at " << SIMTIME_STR(simTime() + (simtime_t)par("epochDuration")) << endl;
     }
 
+    // for all specified threshold build objects to store false positive rates
+    const char *vstr = par("heavyHitterThresholds").stringValue();
+
+    vhht = cStringTokenizer(vstr).asIntVector();
+    for (auto hht : vhht)
+    {
+        char signalName[32];
+        sprintf(signalName, "hht%d-efpr", hht);
+        char statisticName[32];
+        strcpy(statisticName, signalName);
+
+        // dynamically add the signal to this cModule
+        simsignal_t signal = registerSignal(signalName);
+        cProperty *statisticTemplate = getProperties()->get("statisticTemplate", "efpr");
+        getEnvir()->addResultRecorders(this, signal, statisticName, statisticTemplate);
+
+        // first sink also add the signal recording to the network (root)
+        if (getIndex() == 0) {
+            statisticTemplate = getModuleByPath("<root>")->getProperties()->get("statisticTemplate", "efpr");
+            getEnvir()->addResultRecorders(getModuleByPath("<root>"), signal, statisticName, statisticTemplate);
+        }
+
+        // store simsignal_t reference
+        efprs.push_back(signal);
+
+        // do the same for the signal for upper bound
+        sprintf(signalName, "hht%d-ubfpr", hht);
+        strcpy(statisticName, signalName);
+        simsignal_t signal1 = registerSignal(signalName);
+        statisticTemplate = getProperties()->get("statisticTemplate", "ubfpr");
+        getEnvir()->addResultRecorders(this, signal1, statisticName, statisticTemplate);
+        if (getIndex() == 0) {
+            statisticTemplate = getModuleByPath("<root>")->getProperties()->get("statisticTemplate", "ubfpr");
+            getEnvir()->addResultRecorders(getModuleByPath("<root>"), signal1, statisticName, statisticTemplate);
+        }
+
+        ubfprs.push_back(signal1);
+    }
+
+//    while (tokenizer.hasMoreTokens()) {
+//
+//        const char *token = tokenizer.nextToken();
+//
+//        vhht.push_back(atoi(token));
+//
+//        cStdDev stats_ubfpr = cStdDev((string("fpr-bound-") + token).c_str());
+//        ubfpr.push_back(stats_ubfpr);
+//
+//        cStdDev stats_efpr = cStdDev((string("efpr-") + token).c_str());
+//        efpr.push_back(stats_efpr);
+//
+//    }
+
 }
 
 void Sink::handleMessage(cMessage *msg)
@@ -75,7 +128,8 @@ void Sink::handleMessage(cMessage *msg)
         // if maxFlows is set (i.e., maxFlows > -1), end simulation when reached
         if ((int)par("maxFlows")>0 && numFlows == (int)par("maxFlows")) {
 
-            // trigger all sinks to query for respective flows
+            // trigger all sinks to query for respective flows (not implemented in finish() because
+            // query_string invokes methods of sketch modules which might have been already destroyed)
             for (int i=0; i < getVectorSize(); i++) {
                 string pathName = string("^.sink[") + to_string(i) + string("]");
                 check_and_cast<Sink*>(getModuleByPath(pathName.c_str()))->query_sketches();
@@ -116,11 +170,11 @@ long Sink::sketch_vec_to_long(vector<int> v) {
 // perform queries on sketches on the path for all rx flows
 void Sink::query_sketches() {
 
-    EV_INFO << "Querying all received flows and evaluating errors" << endl;
-
     while (!rxFlows.empty()) {  // for all received flows
 
-        Flow f = rxFlows.front(); rxFlows.pop_front();
+        Flow f = rxFlows.front();
+        rxFlows.pop_front();
+
         unsigned int est = UINT_MAX;
         for (int i=0; i < f.useSketch.size(); i++) {
             if (f.useSketch[i]) {   // query fragments where flows where stored
@@ -136,6 +190,31 @@ void Sink::query_sketches() {
             }
         }
 
+        // for all threshold evaluate fpr bound and fpr
+        for (int i=0; i < vhht.size(); i++)
+        {
+            EV_INFO << "Heavy-hitter threshold: " << to_string(vhht[i]) << endl;
+            if (f.size < vhht[i]) // if non heavy hitter
+            {
+                double pfp = 1; // false positive probability
+                for (int j=0; j < f.useSketch.size(); j++)
+                {
+                    if (f.useSketch[j]) // for all used sketches along the path evaluate formula
+                    {
+                        cModule* mod = ((cModule*)f.useSketch[j])->getSubmodule("sketch");
+                        CountMinSketch* cms = check_and_cast<CountMinSketch*>(mod);
+                        pfp = pfp * cms->normalizedtotalcount() / (vhht[i] - f.size); // formula
+                    }
+                }
+                //ubfpr[i].collect(MIN(pfp, 1)); // clip to 1 if not a probability
+                emit(ubfprs[i], MIN(pfp, 1));
+
+                // for each flow collect 1 when false positive, then the mean will be the EFPR
+                //efpr[i].collect(est >= vhht[i]);
+                emit(efprs[i], est >= vhht[i]);
+            }
+        }
+
         emit(Sink::endFlowSizeSignal, f.size);
         emit(Sink::endErrorSignal, est - f.size);
         vector<int> v;
@@ -146,10 +225,17 @@ void Sink::query_sketches() {
         emit(Sink::numHopSignal, f.SRI.size());
 
     }
+
+
 }
 
 void Sink::finish()
 {
+//    for (int i=0; i < ubfpr.size(); i++)
+//    {
+//        ubfpr[i].record();
+//        efpr[i].record();
+//    }
     cancelAndDelete(endEpoch);
 }
 

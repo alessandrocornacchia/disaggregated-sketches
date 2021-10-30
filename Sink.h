@@ -45,6 +45,15 @@ class Sink : public cSimpleModule
         int numFlows;
         list<Flow> rxFlows;
         cMessage* endEpoch = nullptr; // end measurement epoch
+
+        // stats
+        vector<int> vhht;   // heavy hitter thresholds
+        //vector<cStdDev> ubfpr; // upper bound false positive rate
+        //vector<cStdDev> efpr;  // empirical false positive rate
+
+        vector<simsignal_t> ubfprs;
+        vector<simsignal_t> efprs;
+
 };
 
 #endif
